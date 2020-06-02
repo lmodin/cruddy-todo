@@ -2,6 +2,7 @@ const fs = require('fs');
 const path = require('path');
 const _ = require('underscore');
 const counter = require('./counter');
+const Promise = require('bluebird');
 
 var items = {};
 
@@ -33,22 +34,30 @@ exports.create = (text, callback) => {
 
 };
 
-exports.readAll = (callback) => {
+readFileForPromise = Promise.promisify(fs.readFile);
+//changed this from exports.readAll = (callback) => {
+exports.readAll =  function (callback) {
   //use fs.readdir to read the contents of the directory: takes the directory path, and callback
   fs.readdir(exports.dataDir, (err, fileNames) => {
     //callback gets: err and files: an array of the names of the files in the directory
     //if err, throw err
     if (err) {
       throw ('Error obtaining file list');
-    } else {
-      //otherwise map through the data, turn each item into an object of form: {id: 'id', text: 'id'}
-      var data = _.map(fileNames, (file) => {
-        var id = (file.split('.')[0]);
-        return { id: id, text: id };
-      });
-      //call callback with err, mapped array
-      callback(null, data);
     }
+    //otherwise map through the data, turn each item into an object of form: {id: 'id', text: 'id'}
+    var data = _.map(fileNames, (file) => {
+      var id = (file.split('.')[0]);
+      var filePath = path.join(exports.dataDir, file);
+      return readFileForPromise(filePath)
+        .then((text) =>{
+          return { id: id, text: text.toString() };
+        });
+    });
+    //call callback with err, mapped array
+    // callback(null, data);
+    Promise.all(data)
+      .then(items => callback(null, items), err => callback(err));
+
   });
 
 };
@@ -67,35 +76,43 @@ exports.readOne = (id, callback) => {
       callback(null, { id, text: data.toString() });
     }
   });
-  //{ id, text: todoText }
 
-  // var text = items[id];
-  // if (!text) {
-  //   callback(new Error(`No item with id: ${id}`));
-  // } else {
-  //   callback(null, { id, text });
-  // }
 };
 
+
 exports.update = (id, text, callback) => {
-  var item = items[id];
-  if (!item) {
-    callback(new Error(`No item with id: ${id}`));
-  } else {
-    items[id] = text;
-    callback(null, { id, text });
-  }
+  var filePath = path.join(exports.dataDir, `${id}.txt`);
+  //call writeFile: takes filePath, text, callback w/ error
+  fs.exists(filePath, (exist) => {
+    if (!exist) {
+      callback(new Error(`No item with id: ${id}`));
+    } else {
+      fs.writeFile(filePath, text, (err) => {
+        //need to throw error if the id's filePath doesn't current exist
+        if (err) {
+          callback(new Error(`No item with id: ${id}`));
+        } else {
+          callback(null, { id, text });
+        }
+      });
+    }
+  });
 };
 
 exports.delete = (id, callback) => {
-  var item = items[id];
-  delete items[id];
-  if (!item) {
-    // report an error if item not found
-    callback(new Error(`No item with id: ${id}`));
-  } else {
-    callback();
-  }
+  var filePath = path.join(exports.dataDir, `${id}.txt`);
+
+  //use fs.unlink: filePath, callback w/ err
+  fs.unlink(filePath, (err) => {
+    //if error, throw eror
+    if (err) {
+      callback(new Error(`No item with id: ${id}`));
+    } else {
+      //else callback()
+      callback();
+    }
+  });
+
 };
 
 // Config+Initialization code -- DO NOT MODIFY /////////////////////////////////
