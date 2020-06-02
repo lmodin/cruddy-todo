@@ -16,10 +16,13 @@ const zeroPaddedNumber = (num) => {
 };
 
 const readCounter = (callback) => {
+  //readFile takes the filepath, callback with error or data received from reading file
   fs.readFile(exports.counterFile, (err, fileData) => {
     if (err) {
       callback(null, 0);
     } else {
+      //fileData is what we get from reading the file
+      //Number turns the string into the number
       callback(null, Number(fileData));
     }
   });
@@ -27,10 +30,12 @@ const readCounter = (callback) => {
 
 const writeCounter = (count, callback) => {
   var counterString = zeroPaddedNumber(count);
+  //writeFile takes filePath, string, callback with error
   fs.writeFile(exports.counterFile, counterString, (err) => {
     if (err) {
       throw ('error writing counter');
     } else {
+      //apply callback on stringed argument
       callback(null, counterString);
     }
   });
@@ -38,9 +43,21 @@ const writeCounter = (count, callback) => {
 
 // Public API - Fix this function //////////////////////////////////////////////
 
-exports.getNextUniqueId = () => {
-  counter = counter + 1;
-  return zeroPaddedNumber(counter);
+exports.getNextUniqueId = (callback = () => {}) => {
+  //call readCounter to see if that already exists
+  //if it already exists we'll get the current number, otherwise we'll get 0
+  readCounter((err, number) => {
+    if (err) {
+      throw ('error');
+    } else {
+    //call writeCounter with the current number + 1
+      writeCounter((number + 1), (err, counterString) => {
+        //calls this function as long as there aren't any errors
+        //should call callback on string
+        callback (err, counterString);
+      });
+    }
+  });
 };
 
 
